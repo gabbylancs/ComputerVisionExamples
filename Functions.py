@@ -137,17 +137,17 @@ def optical_flow_mod(consecutive_frames=5, missing_frames=3):
     ret, first_frame = cap.read()
     prev_frame = cv.cvtColor(first_frame, cv.COLOR_BGR2GRAY)
     kp_prev, des_prev = orb.detectAndCompute(prev_frame, None)
+    pts_prev = cv.KeyPoint_convert(kp_prev)
 
     # draw only key points location,not size and orientation
     # img2 = cv.drawKeypoints(prev_frame, kp_prev, None, color=(0, 255, 0), flags=0)
     # plt.imshow(img2), plt.show()
 
-    # Create a mask image for drawing purposes
-    mask = np.zeros_like(first_frame)
     i = 0
-    match_matrix = []
     while 1:
         ret, frame = cap.read()
+        # Create a mask image for drawing purposes
+        mask = np.zeros_like(first_frame)
         if not ret:
             print('No frames grabbed!')
             break
@@ -161,14 +161,32 @@ def optical_flow_mod(consecutive_frames=5, missing_frames=3):
         matches_sorted = sorted(matches, key=lambda x: x.distance)
 
         for j in range(0, 20):
-            match_des = des[matches_sorted[j].queryIdx]
-            match_x = pts[matches_sorted[j].trainIdx][0]
-            match_y = pts[matches_sorted[j].trainIdx][1]
+            match_des = des[matches_sorted[j].trainIdx]
+            match_x = int(pts[matches_sorted[j].trainIdx][0])
+            match_y = int(pts[matches_sorted[j].trainIdx][1])
+            match_x_q = int(pts_prev[matches_sorted[j].queryIdx][0])
+            match_y_q = int(pts_prev[matches_sorted[j].queryIdx][1])
 
             desList.append(match_des)
             masterMatrix_x[i * 20 + j][i] = match_x
             masterMatrix_y[i * 20 + j][i] = match_y
 
+            cv.line(mask, (match_x_q, match_y_q), (match_x, match_y),
+                    (0, 255, 0), 7)
+
+            # add the little match to some silly blank then AND it to
+            # the original frame - > print out of for loop
+
+        # onto the next frame but draw current frame:
+
+        img = cv.add(frame, mask)  # Add the lines/circles onto image
+        resized = resize_frame(img, 50)
+        cv.imshow('frame', resized)  # Display image
+        cv.waitKey(0)
+
+        pts_prev = pts
+        kp_prev = kp
+        des_prev = des
         i = i + 1
         if i >= 100:
             break
