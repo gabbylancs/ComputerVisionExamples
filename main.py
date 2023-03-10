@@ -37,6 +37,9 @@ while interaction_unfinished == 1:
     elif selection_1 == '3':
         Functions.optical_flow_mod()
         break
+    elif selection_1 == '4':
+        Functions.optical_flow_improved()
+        break
     else:
         print("That is not a valid response.")
 

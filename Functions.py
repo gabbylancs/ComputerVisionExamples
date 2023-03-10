@@ -2,8 +2,15 @@ import numpy as np
 import cv2 as cv
 from matplotlib import pyplot as plt
 
+# - - - - - - - - - - - - - - - - TEMPORARY DECLARATION OF GLOBAL FUNCTIONS - - - - - - -
 
-# - - - - - - - - - - - - - - - -  MAIN   FUNCTIONS  - - - - - - - - - - - - - - - - -
+# create Des List & master matrix
+desList = []
+mm_shape = (2000, 100)
+masterMatrix_x = np.zeros(mm_shape)  # populate with x positions
+masterMatrix_y = np.zeros(mm_shape)  # populate with y positions
+
+# - - - - - - - - - - - - - - - - MAIN FUNCTIONS  - - - - - - - - - - - - - - - - - - -
 
 # function just to check the file stored is actually reading okay
 def check_video_capture():
@@ -122,10 +129,9 @@ def optical_flow_mod(consecutive_frames=5, missing_frames=3):
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
 
     # create Des List & master matrix
-    desList = []
-    mm_shape = (2000, 100)
-    masterMatrix_x = np.zeros(mm_shape)  # populate with x positions
-    masterMatrix_y = np.zeros(mm_shape)  # populate with y positions
+    global desList
+    global masterMatrix_x
+    global masterMatrix_y
 
     # capture video from file:
     cap = cv.VideoCapture('video.mp4')
@@ -155,11 +161,17 @@ def optical_flow_mod(consecutive_frames=5, missing_frames=3):
         kp, des = orb.detectAndCompute(current_frame, None)
         pts = cv.KeyPoint_convert(kp)
 
+        # Match to previous descriptors IF not first frame
+        # if i > 0:
+        #     match_to_previous_matches(des, pts, des_prev, i)
+        #    i = i
+
         # Match descriptors.
-        matches = bf.match(des_prev, des)
+        matches = bf.match(des_prev, des)  # (query, train)
         # Sort them in the order of their distance.
         matches_sorted = sorted(matches, key=lambda x: x.distance)
 
+        # we're going to only look at the top twenty matches
         for j in range(0, 20):
             match_des = des[matches_sorted[j].trainIdx]
             match_x = int(pts[matches_sorted[j].trainIdx][0])
@@ -167,6 +179,8 @@ def optical_flow_mod(consecutive_frames=5, missing_frames=3):
             match_x_q = int(pts_prev[matches_sorted[j].queryIdx][0])
             match_y_q = int(pts_prev[matches_sorted[j].queryIdx][1])
 
+            # so the master matrix basically stores all the descriptors - the index of the descriptors
+            # can be used to match to the x and y matrices
             desList.append(match_des)
             masterMatrix_x[i * 20 + j][i] = match_x
             masterMatrix_y[i * 20 + j][i] = match_y
@@ -186,6 +200,94 @@ def optical_flow_mod(consecutive_frames=5, missing_frames=3):
 
         pts_prev = pts
         kp_prev = kp
+        # this is essentially the key part that needs to be edited - initially we can edit the descriptor
+        des_prev = des
+        i = i + 1
+        if i >= 100:
+            break
+
+        # plt.imshow(img3), plt.show()
+
+
+def optical_flow_improved():
+    # create orb
+    orb = cv.ORB_create()
+    bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
+
+    # create Des List & master matrix
+    global desList
+    global masterMatrix_x
+    global masterMatrix_y
+
+    # capture video from file:
+    cap = cv.VideoCapture('video.mp4')
+
+    # Create random colors
+    color = np.random.randint(0, 255, (100, 3))
+
+    # Take first frame and find features in it
+    ret, first_frame = cap.read()
+    prev_frame = cv.cvtColor(first_frame, cv.COLOR_BGR2GRAY)
+    kp_prev, des_prev = orb.detectAndCompute(prev_frame, None)
+    pts_prev = cv.KeyPoint_convert(kp_prev)
+
+    # draw only key points location,not size and orientation
+    # img2 = cv.drawKeypoints(prev_frame, kp_prev, None, color=(0, 255, 0), flags=0)
+    # plt.imshow(img2), plt.show()
+
+    i = 0
+    while 1:
+        ret, frame = cap.read()
+        # Create a mask image for drawing purposes
+        mask = np.zeros_like(first_frame)
+        if not ret:
+            print('No frames grabbed!')
+            break
+        current_frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        kp, des = orb.detectAndCompute(current_frame, None)
+        pts = cv.KeyPoint_convert(kp)
+
+        # Match to previous descriptors IF not first frame
+        if i > 0:
+            match_to_previous_matches(des, pts, des_prev, i)
+
+
+        # Match descriptors.
+        matches = bf.match(des_prev, des)  # (query, train)
+        # Sort them in the order of their distance.
+        matches_sorted = sorted(matches, key=lambda x: x.distance)
+
+
+        # we're going to only look at the top twenty matches
+        for j in range(0, 20):
+            match_des = des[matches_sorted[j].trainIdx]
+            match_x = int(pts[matches_sorted[j].trainIdx][0])
+            match_y = int(pts[matches_sorted[j].trainIdx][1])
+            match_x_q = int(pts_prev[matches_sorted[j].queryIdx][0])
+            match_y_q = int(pts_prev[matches_sorted[j].queryIdx][1])
+
+            # so the master matrix basically stores all the descriptors - the index of the descriptors
+            # can be used to match to the x and y matrices
+            desList.append(match_des)
+            masterMatrix_x[i * 20 + j][i] = match_x
+            masterMatrix_y[i * 20 + j][i] = match_y
+
+            cv.line(mask, (match_x_q, match_y_q), (match_x, match_y),
+                    (0, 255, 0), 7)
+
+            # add the little match to some silly blank then AND it to
+            # the original frame - > print out of for loop
+
+        # onto the next frame but draw current frame:
+
+        img = cv.add(frame, mask)  # Add the lines/circles onto image
+        resized = resize_frame(img, 50)
+        cv.imshow('frame', resized)  # Display image
+        cv.waitKey(0)
+
+        pts_prev = pts
+        kp_prev = kp
+        # this is essentially the key part that needs to be edited - initially we can edit the descriptor
         des_prev = des
         i = i + 1
         if i >= 100:
@@ -195,6 +297,7 @@ def optical_flow_mod(consecutive_frames=5, missing_frames=3):
 
 
 # - - - - - - - - - - - - - - - -  FUNCTIONS IN FUNCTIONS  - - - - - - - - - - - - - - - - -
+
 
 # RESIZE FRAME
 # simple function to resize an image or frame
@@ -207,3 +310,50 @@ def resize_frame(img, scale):
     dim = (width, height)
     resized = cv.resize(img, dim, interpolation=cv.INTER_AREA)
     return resized
+
+
+# MATCH TO PREVIOUS MATCHES
+# here we're looking at previous matches as opposed to just the previous frames descriptors
+# this is, so we can keep track of the position of points through multiple frames as opposed
+# to just the previous frame, or first frame (as in the lucas-kanade example)
+# des - the descriptors for the current image
+# pts - the key points for the descriptors
+# frame - indicates the current frame
+# return - need to return a descriptor list that doesn't include the descriptors matched with
+# previous descriptors
+def match_to_previous_matches(des, pts, prev_des, frame):
+    global desList
+    global masterMatrix_x
+    global masterMatrix_y
+
+    # create orb
+    orb = cv.ORB_create()
+    bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
+
+    matches_ = bf.match(prev_des, des)  # (query, train)
+    matches_sorted_ = sorted(matches_, key=lambda x: x.distance)
+    if len(matches_sorted_) < 1:
+        print("no matches to previous matches found")
+        half = 0
+    elif (len(matches_sorted_))%2 == 0:
+        half = matches_sorted_/2
+    else:
+        half = (matches_sorted_+1)/2
+
+    for j in range(0, half):
+
+        # find the positions for the match
+        match_x = int(pts[matches_sorted_[j].trainIdx][0])
+        match_y = int(pts[matches_sorted_[j].trainIdx][1])
+
+        # add them into the matrix
+        masterMatrix_x[matches_sorted_[j].queryIdx][frame] = match_x
+        masterMatrix_y[matches_sorted_[j].queryIdx][frame] = match_y
+
+
+
+
+
+
+
+
