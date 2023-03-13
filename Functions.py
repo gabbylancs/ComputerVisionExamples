@@ -250,7 +250,7 @@ def optical_flow_improved():
 
         # Match to previous descriptors IF not first frame
         if i > 0:
-            match_to_previous_matches(des, pts, des_prev, i)
+            match_to_previous_matches(des, pts, desList, i)
 
         # Match descriptors.
         matches = bf.match(des_prev, des)  # (query, train)
@@ -269,11 +269,7 @@ def optical_flow_improved():
 
             # so the master matrix basically stores all the descriptors - the index of the descriptors
             # can be used to match to the x and y matrices
-            if j < 1 & i == 0:
-                desList_imp = np.append(desList_imp, match_des)
-            else:
-                desList_imp = np.append(desList_imp, match_des, axis=0)
-
+            desList.append(match_des)
             masterMatrix_x[i * 20 + j][i] = match_x
             masterMatrix_y[i * 20 + j][i] = match_y
 
@@ -287,8 +283,8 @@ def optical_flow_improved():
 
         img = cv.add(frame, mask)  # Add the lines/circles onto image
         resized = resize_frame(img, 50)
-        cv.imshow('frame', resized)  # Display image
-        cv.waitKey(0)
+        # cv.imshow('frame', resized)  # Display image
+        # cv.waitKey(0)
 
         pts_prev = pts
         kp_prev = kp
@@ -331,22 +327,23 @@ def match_to_previous_matches(des, pts, prev_des, frame):
     global masterMatrix_x
     global masterMatrix_y
 
+    prev_des_ = np.asarray(prev_des)
+
     # create orb
     orb = cv.ORB_create()
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
 
-    matches_ = bf.match(prev_des, des)  # (query, train)
+    matches_ = bf.match(prev_des_, des)  # (query, train)
     matches_sorted_ = sorted(matches_, key=lambda x: x.distance)
     if len(matches_sorted_) < 1:
         print("no matches to previous matches found")
         half = 0
     elif (len(matches_sorted_))%2 == 0:
-        half = matches_sorted_/2
+        half = len(matches_sorted_)/2
     else:
-        half = (matches_sorted_+1)/2
+        half = (len(matches_sorted_)+1)/2
 
     for j in range(0, half):
-
         # find the positions for the match
         match_x = int(pts[matches_sorted_[j].trainIdx][0])
         match_y = int(pts[matches_sorted_[j].trainIdx][1])
@@ -354,6 +351,8 @@ def match_to_previous_matches(des, pts, prev_des, frame):
         # add them into the matrix
         masterMatrix_x[matches_sorted_[j].queryIdx][frame] = match_x
         masterMatrix_y[matches_sorted_[j].queryIdx][frame] = match_y
+
+
 
 
 
