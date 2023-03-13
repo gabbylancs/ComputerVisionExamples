@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 
 # create Des List & master matrix
 desList = []
+desList_imp = np.empty((0, 32), dtype=np.uint8)
 mm_shape = (2000, 100)
 masterMatrix_x = np.zeros(mm_shape)  # populate with x positions
 masterMatrix_y = np.zeros(mm_shape)  # populate with y positions
@@ -215,7 +216,7 @@ def optical_flow_improved():
     bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
 
     # create Des List & master matrix
-    global desList
+    global desList_imp
     global masterMatrix_x
     global masterMatrix_y
 
@@ -251,12 +252,12 @@ def optical_flow_improved():
         if i > 0:
             match_to_previous_matches(des, pts, des_prev, i)
 
-
         # Match descriptors.
         matches = bf.match(des_prev, des)  # (query, train)
         # Sort them in the order of their distance.
         matches_sorted = sorted(matches, key=lambda x: x.distance)
 
+        # if it's the first frame then we need to create the descriptor list
 
         # we're going to only look at the top twenty matches
         for j in range(0, 20):
@@ -268,7 +269,11 @@ def optical_flow_improved():
 
             # so the master matrix basically stores all the descriptors - the index of the descriptors
             # can be used to match to the x and y matrices
-            desList.append(match_des)
+            if j < 1 & i == 0:
+                desList_imp = np.append(desList_imp, match_des)
+            else:
+                desList_imp = np.append(desList_imp, match_des, axis=0)
+
             masterMatrix_x[i * 20 + j][i] = match_x
             masterMatrix_y[i * 20 + j][i] = match_y
 
