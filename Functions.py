@@ -10,6 +10,7 @@ desList_imp = np.empty((0, 32), dtype=np.uint8)
 mm_shape = (2000, 100)
 masterMatrix_x = np.zeros(mm_shape)  # populate with x positions
 masterMatrix_y = np.zeros(mm_shape)  # populate with y positions
+color = list(np.random.choice(range(256), size=100))
 
 # - - - - - - - - - - - - - - - - MAIN FUNCTIONS  - - - - - - - - - - - - - - - - - - -
 
@@ -223,14 +224,13 @@ def optical_flow_improved():
     # capture video from file:
     cap = cv.VideoCapture('video.mp4')
 
-    # Create random colors
-    color = np.random.randint(0, 255, (100, 3))
-
     # Take first frame and find features in it
     ret, first_frame = cap.read()
     prev_frame = cv.cvtColor(first_frame, cv.COLOR_BGR2GRAY)
     kp_prev, des_prev = orb.detectAndCompute(prev_frame, None)
     pts_prev = cv.KeyPoint_convert(kp_prev)
+
+    mask = np.zeros_like(first_frame)  # Create a mask image for drawing purposes
 
     # draw only key points location,not size and orientation
     # img2 = cv.drawKeypoints(prev_frame, kp_prev, None, color=(0, 255, 0), flags=0)
@@ -239,18 +239,21 @@ def optical_flow_improved():
     i = 0
     while 1:
         ret, frame = cap.read()
-        # Create a mask image for drawing purposes
-        mask = np.zeros_like(first_frame)
         if not ret:
             print('No frames grabbed!')
             break
         current_frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        kp, des = orb.detectAndCompute(current_frame, None)
-        pts = cv.KeyPoint_convert(kp)
+        kp, des_og = orb.detectAndCompute(current_frame, None)
+        pts_og = cv.KeyPoint_convert(kp)
 
         # Match to previous descriptors IF not first frame
         if i > 0:
-            match_to_previous_matches(des, pts, desList, i)
+            match_to_previous_matches(des_og, pts_og, desList, i)
+            des = des_og
+            pts = pts_og
+        else:
+            des = des_og
+            pts = pts_og
 
         # Match descriptors.
         matches = bf.match(des_prev, des)  # (query, train)
@@ -270,21 +273,18 @@ def optical_flow_improved():
             # so the master matrix basically stores all the descriptors - the index of the descriptors
             # can be used to match to the x and y matrices
             desList.append(match_des)
-            masterMatrix_x[i * 20 + j][i] = match_x
-            masterMatrix_y[i * 20 + j][i] = match_y
+            masterMatrix_x[i * 20 + j][i] = match_x_q
+            masterMatrix_y[i * 20 + j][i] = match_y_q
+            masterMatrix_x[i * 20 + j][i + 1] = match_x
+            masterMatrix_y[i * 20 + j][i + 1] = match_y
 
-            cv.line(mask, (match_x_q, match_y_q), (match_x, match_y),
-                    (0, 255, 0), 7)
-
-            # add the little match to some silly blank then AND it to
-            # the original frame - > print out of for loop
-
-        # onto the next frame but draw current frame:
+        new_mask = draw_track_lines(i + 1, mask)  # create a mask of the new points
+        mask = cv.add(mask, new_mask)  # add that to the current mask
 
         img = cv.add(frame, mask)  # Add the lines/circles onto image
         resized = resize_frame(img, 50)
-        # cv.imshow('frame', resized)  # Display image
-        # cv.waitKey(0)
+        cv.imshow('frame', resized)  # Display image
+        cv.waitKey(0)
 
         pts_prev = pts
         kp_prev = kp
@@ -343,7 +343,7 @@ def match_to_previous_matches(des, pts, prev_des, frame):
     else:
         half = (len(matches_sorted_)+1)/2
 
-    for j in range(0, half):
+    for j in range(0, int(half)):
         # find the positions for the match
         match_x = int(pts[matches_sorted_[j].trainIdx][0])
         match_y = int(pts[matches_sorted_[j].trainIdx][1])
@@ -351,6 +351,50 @@ def match_to_previous_matches(des, pts, prev_des, frame):
         # add them into the matrix
         masterMatrix_x[matches_sorted_[j].queryIdx][frame] = match_x
         masterMatrix_y[matches_sorted_[j].queryIdx][frame] = match_y
+
+        # remove them to prevent double matching
+        np.delete(pts, matches_sorted_[j].trainIdx)
+        np.delete(prev_des, matches_sorted_[j].trainIdx)
+
+    return prev_des, pts
+
+
+# DRAW TRACK LINES
+# This matrix will draw the track lines for each row of the X and Y matrices, this should
+# correspond to the movement of the key-points within the pipes
+# frame_no - the current frame that the algorithm is on
+# mask_for_size - the current mask just to get the correct size
+# return -> mask, a mask with the current tracks on the past frame
+def draw_track_lines(frame_no, mask_for_size):
+
+    global color
+    global masterMatrix_x
+    global masterMatrix_y
+
+    mask = np.zeros_like(mask_for_size)
+
+    for j in range(0, frame_no*20):
+        x_prev = int(masterMatrix_x[j][frame_no - 1])
+        x_curr = int(masterMatrix_x[j][frame_no])
+        y_prev = int(masterMatrix_y[j][frame_no - 1])
+        y_curr = int(masterMatrix_y[j][frame_no])
+
+        # if there was a previous frame then it will not be zero
+        if x_curr != 0:
+            r = int(color[j % 100])
+            g = int(color[(j + 1) % 100])
+            b = int(color[(j + 2) % 100])
+
+            cv.line(mask, (x_prev, y_prev), (x_curr, y_curr), (r, g, b), 7)
+
+    # resized = resize_frame(mask, 50)
+    # cv.imshow('mask', resized)  # Display image
+    # cv.waitKey(0)
+
+    return mask
+
+
+
 
 
 
