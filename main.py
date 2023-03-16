@@ -25,7 +25,7 @@ interaction_unfinished = 1
 while interaction_unfinished == 1:
 
     print("Would you like to (1) show the video, (2) use basic lucas-kanade algorithm, (3) try mod optical flow")
-    selection_1 = input("please enter '1' or '2'")
+    selection_1 = input("enter 4 atm")
 
     if selection_1 == '1':
         print('1 selected')

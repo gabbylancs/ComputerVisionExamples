@@ -1,5 +1,6 @@
 import numpy as np
 import cv2 as cv
+import random
 from matplotlib import pyplot as plt
 
 # - - - - - - - - - - - - - - - - TEMPORARY DECLARATION OF GLOBAL FUNCTIONS - - - - - - -
@@ -10,7 +11,9 @@ desList_imp = np.empty((0, 32), dtype=np.uint8)
 mm_shape = (2000, 100)
 masterMatrix_x = np.zeros(mm_shape)  # populate with x positions
 masterMatrix_y = np.zeros(mm_shape)  # populate with y positions
-color = list(np.random.choice(range(256), size=100))
+color = list(np.random.choice(range(0, 256), size=100))
+
+colors = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)])for i in range(100)]
 
 # - - - - - - - - - - - - - - - - MAIN FUNCTIONS  - - - - - - - - - - - - - - - - - - -
 
@@ -249,11 +252,14 @@ def optical_flow_improved():
         # Match to previous descriptors IF not first frame
         if i > 0:
             match_to_previous_matches(des_og, pts_og, desList, i)
-            des = des_og
+            des = des_og # should replace with returned arrays - but the index's dont seem to work :(
             pts = pts_og
         else:
             des = des_og
             pts = pts_og
+
+        new_mask = draw_track_lines(i, mask)  # create a mask of the new points
+        mask = cv.add(mask, new_mask)  # add that to the current mask
 
         # Match descriptors.
         matches = bf.match(des_prev, des)  # (query, train)
@@ -278,8 +284,6 @@ def optical_flow_improved():
             masterMatrix_x[i * 20 + j][i + 1] = match_x
             masterMatrix_y[i * 20 + j][i + 1] = match_y
 
-        new_mask = draw_track_lines(i + 1, mask)  # create a mask of the new points
-        mask = cv.add(mask, new_mask)  # add that to the current mask
 
         img = cv.add(frame, mask)  # Add the lines/circles onto image
         resized = resize_frame(img, 50)
@@ -381,9 +385,15 @@ def draw_track_lines(frame_no, mask_for_size):
 
         # if there was a previous frame then it will not be zero
         if x_curr != 0:
+            for k in range(1, frame_no+1):
+                if int(masterMatrix_x[j][frame_no - k]) != 0:
+                    x_prev = int(masterMatrix_x[j][frame_no - k])
+                    y_prev = int(masterMatrix_y[j][frame_no - k])
+                    break
+
             r = int(color[j % 100])
             g = int(color[(j + 1) % 100])
-            b = int(color[(j + 2) % 100])
+            b = int(255-r)
 
             cv.line(mask, (x_prev, y_prev), (x_curr, y_curr), (r, g, b), 7)
 
