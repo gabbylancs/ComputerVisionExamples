@@ -284,7 +284,6 @@ def optical_flow_improved():
             masterMatrix_x[i * 20 + j][i + 1] = match_x
             masterMatrix_y[i * 20 + j][i + 1] = match_y
 
-
         img = cv.add(frame, mask)  # Add the lines/circles onto image
         resized = resize_frame(img, 50)
         cv.imshow('frame', resized)  # Display image
